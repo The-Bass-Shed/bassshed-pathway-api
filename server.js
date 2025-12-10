@@ -64,6 +64,15 @@ Guidelines:
 - Do NOT mention The Bass Shed business details; just act like the in-house teacher.
 `;
 
+// Simple GET for debugging in browser
+app.get("/bassshed-pathway", (req, res) => {
+  return res.status(200).json({
+    error: "Missing description",
+    pathway:
+      "Please POST a JSON body { \"description\": \"...\" } to this endpoint, or use the website widget."
+  });
+});
+
 app.post("/bassshed-pathway", async (req, res) => {
   try {
     const userDescription = req.body?.description || "";
@@ -77,6 +86,7 @@ app.post("/bassshed-pathway", async (req, res) => {
     }
 
     const completion = await client.chat.completions.create({
+      // If this model ever errors, try "gpt-4o-mini" or "gpt-4o"
       model: "gpt-4.1-mini",
       temperature: 0.7,
       max_tokens: 900,
@@ -93,13 +103,23 @@ app.post("/bassshed-pathway", async (req, res) => {
       completion.choices?.[0]?.message?.content ||
       "I had trouble generating a pathway. Please try again with a bit more detail.";
 
-    res.json({ pathway: content });
+    return res.json({ pathway: content });
   } catch (err) {
-    console.error("Pathway error:", err);
-    res.status(500).json({
-      error: "Server error",
+    // Log full error on server
+    console.error("Pathway error:", err?.response?.data || err.message || err);
+
+    // Try to extract a useful message from OpenAI
+    const apiErrorMessage =
+      err?.response?.data?.error?.message ||
+      err?.response?.data?.message ||
+      err?.message ||
+      "Server error";
+
+    return res.status(500).json({
+      error: apiErrorMessage,
       pathway:
-        "Something glitched on the server side. Try again in a minute or rephrase your description."
+        "Something glitched on the server side, but here’s the technical message: " +
+        apiErrorMessage
     });
   }
 });
